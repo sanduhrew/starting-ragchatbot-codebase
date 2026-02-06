@@ -24,6 +24,10 @@ uv sync
 ### Environment setup
 Copy `.env.example` to `.env` and set `ANTHROPIC_API_KEY`.
 
+## Development Rules
+
+- **Always use `uv` to run Python** — use `uv run` to execute scripts and `uv sync` for dependencies. Never use `pip install` or bare `python`.
+
 ## Architecture
 
 The system follows a pipeline: **Frontend → FastAPI → RAG Orchestrator → Claude API (with tool calling) → Vector Store → Response**.
