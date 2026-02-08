@@ -1,5 +1,8 @@
 import anthropic
+import logging
 from typing import List, Optional, Dict, Any
+
+logger = logging.getLogger(__name__)
 
 class AIGenerator:
     """Handles interactions with Anthropic's Claude API for generating responses"""
@@ -34,9 +37,16 @@ Provide only the direct answer to what was asked.
 """
     
     def __init__(self, api_key: str, model: str):
-        self.client = anthropic.Anthropic(api_key=api_key)
+        logger.info(f"Initializing AIGenerator with model: {model}")
+        try:
+            self.client = anthropic.Anthropic(api_key=api_key)
+            logger.debug("Anthropic client initialized successfully")
+        except Exception as e:
+            logger.error(f"Failed to initialize Anthropic client: {e}")
+            raise
+
         self.model = model
-        
+
         # Pre-build base API parameters
         self.base_params = {
             "model": self.model,
@@ -79,15 +89,33 @@ Provide only the direct answer to what was asked.
         if tools:
             api_params["tools"] = tools
             api_params["tool_choice"] = {"type": "auto"}
-        
+            logger.debug(f"Tools enabled: {len(tools)} tools available")
+
         # Get response from Claude
-        response = self.client.messages.create(**api_params)
-        
+        try:
+            logger.debug(f"Making API call for query: {query[:100]}...")
+            response = self.client.messages.create(**api_params)
+            logger.debug(f"API response received: stop_reason={response.stop_reason}")
+        except anthropic.AuthenticationError as e:
+            logger.error(f"API authentication failed: {e}")
+            raise ValueError(f"Anthropic API key is invalid or expired: {e}")
+        except anthropic.RateLimitError as e:
+            logger.error(f"API rate limit exceeded: {e}")
+            raise ValueError(f"Anthropic API rate limit exceeded. Please try again later: {e}")
+        except anthropic.APIError as e:
+            logger.error(f"Anthropic API error: {e}")
+            raise ValueError(f"Anthropic API error: {e}")
+        except Exception as e:
+            logger.error(f"Unexpected error during API call: {type(e).__name__}: {e}")
+            raise ValueError(f"Unexpected error calling Anthropic API: {type(e).__name__}: {e}")
+
         # Handle tool execution if needed
         if response.stop_reason == "tool_use" and tool_manager:
+            logger.debug("Tool use detected, executing tools...")
             return self._handle_tool_execution(response, api_params, tool_manager)
-        
+
         # Return direct response
+        logger.debug("Returning direct response (no tools used)")
         return response.content[0].text
     
     def _handle_tool_execution(self, initial_response, base_params: Dict[str, Any], tool_manager):
@@ -112,11 +140,13 @@ Provide only the direct answer to what was asked.
         tool_results = []
         for content_block in initial_response.content:
             if content_block.type == "tool_use":
+                logger.debug(f"Executing tool: {content_block.name} with params: {content_block.input}")
                 tool_result = tool_manager.execute_tool(
-                    content_block.name, 
+                    content_block.name,
                     **content_block.input
                 )
-                
+                logger.debug(f"Tool result length: {len(tool_result)} chars")
+
                 tool_results.append({
                     "type": "tool_result",
                     "tool_use_id": content_block.id,
@@ -135,5 +165,11 @@ Provide only the direct answer to what was asked.
         }
         
         # Get final response
-        final_response = self.client.messages.create(**final_params)
-        return final_response.content[0].text
+        try:
+            logger.debug("Making follow-up API call with tool results...")
+            final_response = self.client.messages.create(**final_params)
+            logger.debug("Follow-up API call successful")
+            return final_response.content[0].text
+        except Exception as e:
+            logger.error(f"Error in follow-up API call: {type(e).__name__}: {e}")
+            raise ValueError(f"Error synthesizing response with tool results: {e}")

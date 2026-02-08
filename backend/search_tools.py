@@ -1,6 +1,9 @@
 from typing import Dict, Any, Optional, Protocol
 from abc import ABC, abstractmethod
+import logging
 from vector_store import VectorStore, SearchResults
+
+logger = logging.getLogger(__name__)
 
 
 class Tool(ABC):
@@ -52,27 +55,29 @@ class CourseSearchTool(Tool):
     def execute(self, query: str, course_name: Optional[str] = None, lesson_number: Optional[int] = None) -> str:
         """
         Execute the search tool with given parameters.
-        
+
         Args:
             query: What to search for
             course_name: Optional course filter
             lesson_number: Optional lesson filter
-            
+
         Returns:
             Formatted search results or error message
         """
-        
+        logger.debug(f"CourseSearchTool.execute called: query='{query[:50]}...', course='{course_name}', lesson={lesson_number}")
+
         # Use the vector store's unified search interface
         results = self.store.search(
             query=query,
             course_name=course_name,
             lesson_number=lesson_number
         )
-        
+
         # Handle errors
         if results.error:
+            logger.error(f"Search returned error: {results.error}")
             return results.error
-        
+
         # Handle empty results
         if results.is_empty():
             filter_info = ""
@@ -80,9 +85,11 @@ class CourseSearchTool(Tool):
                 filter_info += f" in course '{course_name}'"
             if lesson_number:
                 filter_info += f" in lesson {lesson_number}"
+            logger.info(f"No results found{filter_info}")
             return f"No relevant content found{filter_info}."
-        
+
         # Format and return results
+        logger.debug(f"Search successful: {len(results.documents)} results found")
         return self._format_results(results)
     
     def _format_results(self, results: SearchResults) -> str:

@@ -1,11 +1,14 @@
 from typing import List, Tuple, Optional, Dict
 import os
+import logging
 from document_processor import DocumentProcessor
 from vector_store import VectorStore
 from ai_generator import AIGenerator
 from session_manager import SessionManager
 from search_tools import ToolManager, CourseSearchTool, CourseOutlineTool
 from models import Course, Lesson, CourseChunk
+
+logger = logging.getLogger(__name__)
 
 class RAGSystem:
     """Main orchestrator for the Retrieval-Augmented Generation system"""
@@ -104,42 +107,54 @@ class RAGSystem:
     def query(self, query: str, session_id: Optional[str] = None) -> Tuple[str, List[str]]:
         """
         Process a user query using the RAG system with tool-based search.
-        
+
         Args:
             query: User's question
             session_id: Optional session ID for conversation context
-            
+
         Returns:
             Tuple of (response, sources list - empty for tool-based approach)
         """
-        # Create prompt for the AI with clear instructions
-        prompt = f"""Answer this question about course materials: {query}"""
-        
-        # Get conversation history if session exists
-        history = None
-        if session_id:
-            history = self.session_manager.get_conversation_history(session_id)
-        
-        # Generate response using AI with tools
-        response = self.ai_generator.generate_response(
-            query=prompt,
-            conversation_history=history,
-            tools=self.tool_manager.get_tool_definitions(),
-            tool_manager=self.tool_manager
-        )
-        
-        # Get sources from the search tool
-        sources = self.tool_manager.get_last_sources()
+        logger.info(f"Processing query: {query[:100]}... (session_id={session_id})")
 
-        # Reset sources after retrieving them
-        self.tool_manager.reset_sources()
-        
-        # Update conversation history
-        if session_id:
-            self.session_manager.add_exchange(session_id, query, response)
-        
-        # Return response with sources from tool searches
-        return response, sources
+        try:
+            # Create prompt for the AI with clear instructions
+            prompt = f"""Answer this question about course materials: {query}"""
+
+            # Get conversation history if session exists
+            history = None
+            if session_id:
+                history = self.session_manager.get_conversation_history(session_id)
+                logger.debug(f"Retrieved conversation history: {len(history) if history else 0} chars")
+
+            # Generate response using AI with tools
+            logger.debug("Calling AI generator...")
+            response = self.ai_generator.generate_response(
+                query=prompt,
+                conversation_history=history,
+                tools=self.tool_manager.get_tool_definitions(),
+                tool_manager=self.tool_manager
+            )
+            logger.info("AI generator returned response successfully")
+
+            # Get sources from the search tool
+            sources = self.tool_manager.get_last_sources()
+            logger.debug(f"Retrieved {len(sources)} sources from tool manager")
+
+            # Reset sources after retrieving them
+            self.tool_manager.reset_sources()
+
+            # Update conversation history
+            if session_id:
+                self.session_manager.add_exchange(session_id, query, response)
+                logger.debug("Updated conversation history")
+
+            # Return response with sources from tool searches
+            return response, sources
+
+        except Exception as e:
+            logger.error(f"Error processing query: {type(e).__name__}: {e}", exc_info=True)
+            raise
     
     def get_course_analytics(self) -> Dict:
         """Get analytics about the course catalog"""
