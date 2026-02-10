@@ -38,7 +38,8 @@ env/
 *~
 
 # Claude Code
-.claude/
+.claude/*
+!.claude/commands/
 
 # Playwright MCP
 .playwright-mcp/
