@@ -24,9 +24,29 @@ uv sync
 ### Environment setup
 Copy `.env.example` to `.env` and set `ANTHROPIC_API_KEY`.
 
+### Code quality
+
+```bash
+# Format all code
+./format.sh
+
+# Check code quality (without modifying files)
+./lint.sh
+
+# Auto-fix issues and format
+./fix.sh
+```
+
+- **format.sh** - Formats code with Black and sorts imports with Ruff
+- **lint.sh** - Checks formatting and runs linter without making changes
+- **fix.sh** - Auto-fixes linting issues and formats code
+
+Run `./lint.sh` before committing to ensure code passes quality checks.
+
 ## Development Rules
 
 - **Always use `uv` to run Python** — use `uv run` to execute scripts and `uv sync` for dependencies. Never use `pip install` or bare `python`.
+- **Format code before committing** — run `./lint.sh` to verify code quality.
 
 ## Architecture
 

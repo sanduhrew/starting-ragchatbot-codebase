@@ -1,11 +1,14 @@
 """Tests for AIGenerator sequential tool calling functionality"""
+
+from unittest.mock import Mock
+
 import pytest
-from unittest.mock import Mock, MagicMock, call
 from ai_generator import AIGenerator
 
 
 class MockResponse:
     """Mock Anthropic API response"""
+
     def __init__(self, text=None, tool_use_blocks=None, stop_reason="end_turn"):
         self.stop_reason = stop_reason
         self.model = "claude-sonnet-4-20250514"
@@ -58,15 +61,10 @@ def test_general_question_no_tools(generator, mock_client):
     """Test that general knowledge questions complete in one round without tools"""
     # Mock API to return text response immediately
     mock_client.messages.create.return_value = MockResponse(
-        text="Python is a programming language.",
-        stop_reason="end_turn"
+        text="Python is a programming language.", stop_reason="end_turn"
     )
 
-    response = generator.generate_response(
-        query="What is Python?",
-        tools=[],
-        tool_manager=None
-    )
+    response = generator.generate_response(query="What is Python?", tools=[], tool_manager=None)
 
     # Verify: Only 1 API call made
     assert mock_client.messages.create.call_count == 1
@@ -85,13 +83,13 @@ def test_single_round_with_tool(generator, mock_client, mock_tool_manager):
     tool_block = make_tool_use_block(
         tool_name="search_course_content",
         tool_input={"query": "MCP", "course_name": None},
-        tool_use_id="tool_1"
+        tool_use_id="tool_1",
     )
 
     # Round 2: Claude provides final answer
     mock_client.messages.create.side_effect = [
         MockResponse(tool_use_blocks=[tool_block], stop_reason="tool_use"),
-        MockResponse(text="MCP is a protocol for...", stop_reason="end_turn")
+        MockResponse(text="MCP is a protocol for...", stop_reason="end_turn"),
     ]
 
     mock_tool_manager.execute_tool.return_value = "MCP documentation content"
@@ -99,7 +97,7 @@ def test_single_round_with_tool(generator, mock_client, mock_tool_manager):
     response = generator.generate_response(
         query="What is MCP?",
         tools=[{"name": "search_course_content"}],
-        tool_manager=mock_tool_manager
+        tool_manager=mock_tool_manager,
     )
 
     # Verify: 2 API calls made (initial + response with tool results)
@@ -108,9 +106,7 @@ def test_single_round_with_tool(generator, mock_client, mock_tool_manager):
     # Verify: 1 tool executed
     assert mock_tool_manager.execute_tool.call_count == 1
     mock_tool_manager.execute_tool.assert_called_with(
-        "search_course_content",
-        query="MCP",
-        course_name=None
+        "search_course_content", query="MCP", course_name=None
     )
 
     # Verify: Final response returned
@@ -126,34 +122,32 @@ def test_two_sequential_rounds(generator, mock_client, mock_tool_manager):
     """Test sequential tool calls: outline → search → final response"""
     # Round 1: Get course outline
     tool_block_1 = make_tool_use_block(
-        tool_name="get_course_outline",
-        tool_input={"course_name": "MCP"},
-        tool_use_id="tool_1"
+        tool_name="get_course_outline", tool_input={"course_name": "MCP"}, tool_use_id="tool_1"
     )
 
     # Round 2: Search based on outline results
     tool_block_2 = make_tool_use_block(
         tool_name="search_course_content",
         tool_input={"query": "lesson 4 topic", "course_name": "MCP"},
-        tool_use_id="tool_2"
+        tool_use_id="tool_2",
     )
 
     # Round 3: Final answer
     mock_client.messages.create.side_effect = [
         MockResponse(tool_use_blocks=[tool_block_1], stop_reason="tool_use"),
         MockResponse(tool_use_blocks=[tool_block_2], stop_reason="tool_use"),
-        MockResponse(text="Lesson 4 discusses advanced features...", stop_reason="end_turn")
+        MockResponse(text="Lesson 4 discusses advanced features...", stop_reason="end_turn"),
     ]
 
     mock_tool_manager.execute_tool.side_effect = [
         "Lesson 1: Intro\nLesson 4: Advanced Features",
-        "Detailed content about advanced features"
+        "Detailed content about advanced features",
     ]
 
     response = generator.generate_response(
         query="What does lesson 4 of MCP course discuss?",
         tools=[{"name": "get_course_outline"}, {"name": "search_course_content"}],
-        tool_manager=mock_tool_manager
+        tool_manager=mock_tool_manager,
     )
 
     # Verify: 3 API calls made (initial + 2 rounds with tools)
@@ -183,7 +177,7 @@ def test_max_rounds_enforcement(generator, mock_client, mock_tool_manager):
     mock_client.messages.create.side_effect = [
         MockResponse(tool_use_blocks=[tool_block_1], stop_reason="tool_use"),  # Round 1
         MockResponse(tool_use_blocks=[tool_block_2], stop_reason="tool_use"),  # Round 2
-        MockResponse(text="Final synthesis answer", stop_reason="end_turn")     # Forced synthesis
+        MockResponse(text="Final synthesis answer", stop_reason="end_turn"),  # Forced synthesis
     ]
 
     mock_tool_manager.execute_tool.return_value = "Search result"
@@ -191,7 +185,7 @@ def test_max_rounds_enforcement(generator, mock_client, mock_tool_manager):
     response = generator.generate_response(
         query="Complex query requiring many searches",
         tools=[{"name": "search"}],
-        tool_manager=mock_tool_manager
+        tool_manager=mock_tool_manager,
     )
 
     # Verify: 3 API calls (2 rounds + forced synthesis without tools)
@@ -215,16 +209,16 @@ def test_tool_execution_error_handling(generator, mock_client, mock_tool_manager
     # Claude tries to use tool, tool fails, Claude responds with error message
     mock_client.messages.create.side_effect = [
         MockResponse(tool_use_blocks=[tool_block], stop_reason="tool_use"),
-        MockResponse(text="I encountered an error searching. Please try again.", stop_reason="end_turn")
+        MockResponse(
+            text="I encountered an error searching. Please try again.", stop_reason="end_turn"
+        ),
     ]
 
     # Tool execution raises exception
     mock_tool_manager.execute_tool.side_effect = Exception("Course not found")
 
     response = generator.generate_response(
-        query="Find course X",
-        tools=[{"name": "search"}],
-        tool_manager=mock_tool_manager
+        query="Find course X", tools=[{"name": "search"}], tool_manager=mock_tool_manager
     )
 
     # Verify: Tool was attempted
@@ -253,15 +247,13 @@ def test_natural_termination_after_first_round(generator, mock_client, mock_tool
     # Round 2: Claude decides it has enough information and responds
     mock_client.messages.create.side_effect = [
         MockResponse(tool_use_blocks=[tool_block], stop_reason="tool_use"),
-        MockResponse(text="Based on the search, Python is...", stop_reason="end_turn")
+        MockResponse(text="Based on the search, Python is...", stop_reason="end_turn"),
     ]
 
     mock_tool_manager.execute_tool.return_value = "Python documentation"
 
     response = generator.generate_response(
-        query="What is Python?",
-        tools=[{"name": "search"}],
-        tool_manager=mock_tool_manager
+        query="What is Python?", tools=[{"name": "search"}], tool_manager=mock_tool_manager
     )
 
     # Verify: Only 2 API calls (didn't force a third round)
@@ -281,7 +273,7 @@ def test_api_error_during_tool_round(generator, mock_client, mock_tool_manager):
     # First call succeeds with tool use, second call fails
     mock_client.messages.create.side_effect = [
         MockResponse(tool_use_blocks=[tool_block], stop_reason="tool_use"),
-        Exception("API connection failed")
+        Exception("API connection failed"),
     ]
 
     mock_tool_manager.execute_tool.return_value = "Tool result"
@@ -289,9 +281,7 @@ def test_api_error_during_tool_round(generator, mock_client, mock_tool_manager):
     # Should raise ValueError with user-friendly message
     with pytest.raises(ValueError) as exc_info:
         generator.generate_response(
-            query="Test query",
-            tools=[{"name": "search"}],
-            tool_manager=mock_tool_manager
+            query="Test query", tools=[{"name": "search"}], tool_manager=mock_tool_manager
         )
 
     assert "Unexpected error calling Anthropic API" in str(exc_info.value)
@@ -305,15 +295,12 @@ def test_no_tool_manager_provided(generator, mock_client):
     tool_block = make_tool_use_block("search", {"query": "test"}, "tool_1")
 
     mock_client.messages.create.return_value = MockResponse(
-        tool_use_blocks=[tool_block],
-        stop_reason="tool_use"
+        tool_use_blocks=[tool_block], stop_reason="tool_use"
     )
 
     # No tool_manager provided
     response = generator.generate_response(
-        query="Test query",
-        tools=[{"name": "search"}],
-        tool_manager=None
+        query="Test query", tools=[{"name": "search"}], tool_manager=None
     )
 
     # Verify: Only 1 API call made
@@ -329,17 +316,16 @@ def test_no_tool_manager_provided(generator, mock_client):
 def test_conversation_history_preserved(generator, mock_client, mock_tool_manager):
     """Test that conversation history is included in system prompt"""
     mock_client.messages.create.return_value = MockResponse(
-        text="Response with history context",
-        stop_reason="end_turn"
+        text="Response with history context", stop_reason="end_turn"
     )
 
     conversation_history = "User: Hello\nAssistant: Hi there!"
 
-    response = generator.generate_response(
+    _response = generator.generate_response(
         query="New question",
         conversation_history=conversation_history,
         tools=[],
-        tool_manager=mock_tool_manager
+        tool_manager=mock_tool_manager,
     )
 
     # Verify: System prompt includes conversation history
@@ -355,17 +341,15 @@ def test_tools_enabled_in_all_rounds(generator, mock_client, mock_tool_manager):
 
     mock_client.messages.create.side_effect = [
         MockResponse(tool_use_blocks=[tool_block_1], stop_reason="tool_use"),
-        MockResponse(text="Final answer", stop_reason="end_turn")
+        MockResponse(text="Final answer", stop_reason="end_turn"),
     ]
 
     mock_tool_manager.execute_tool.return_value = "Result"
 
     test_tools = [{"name": "search"}]
 
-    response = generator.generate_response(
-        query="Test",
-        tools=test_tools,
-        tool_manager=mock_tool_manager
+    _response = generator.generate_response(
+        query="Test", tools=test_tools, tool_manager=mock_tool_manager
     )
 
     # Verify: Tools were available in both calls
