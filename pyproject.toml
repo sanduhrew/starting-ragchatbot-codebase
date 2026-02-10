@@ -13,6 +13,8 @@ dependencies = [
     "python-multipart==0.0.20",
     "python-dotenv==1.1.1",
     "pytest>=8.0.0",
+    "black>=24.0.0",
+    "ruff>=0.8.0",
 ]
 
 [tool.pytest.ini_options]
@@ -36,3 +38,52 @@ filterwarnings = [
     "ignore::DeprecationWarning",
     "ignore::PendingDeprecationWarning",
 ]
+
+[tool.black]
+line-length = 100
+target-version = ['py313']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  \.eggs
+  | \.git
+  | \.venv
+  | build
+  | dist
+  | chroma_db
+)/
+'''
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+
+extend-exclude = [
+    "chroma_db",
+    ".venv",
+    "dist",
+]
+
+[tool.ruff.lint]
+select = [
+    "E",      # pycodestyle errors
+    "F",      # pyflakes
+    "I",      # isort (import sorting)
+    "UP",     # pyupgrade (modern Python syntax)
+    "B",      # flake8-bugbear (common bugs)
+    "SIM",    # flake8-simplify
+]
+
+ignore = [
+    "E501",   # line too long (Black handles this)
+    "SIM108", # use ternary operator (can reduce readability)
+    "B904",   # Exception chaining (raise from e) - too strict for this codebase
+]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"]
+"app.py" = ["E402"]  # Import not at top (needed for warnings filter)
+"tests/test_*.py" = ["F841"]  # Unused variables in tests are okay
+
+[tool.ruff.lint.isort]
+known-first-party = ["backend"]

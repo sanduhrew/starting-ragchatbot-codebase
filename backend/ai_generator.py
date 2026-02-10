@@ -1,12 +1,13 @@
-import anthropic
 import logging
-from typing import List, Optional, Dict, Any
+
+import anthropic
 
 logger = logging.getLogger(__name__)
 
+
 class AIGenerator:
     """Handles interactions with Anthropic's Claude API for generating responses"""
-    
+
     # Static system prompt to avoid rebuilding on each call
     SYSTEM_PROMPT = """You are an AI assistant specialized in course materials and educational content with access to tools for course information.
 
@@ -51,7 +52,7 @@ All responses must be:
 4. **Example-supported** - Include relevant examples when they aid understanding
 Provide only the direct answer to what was asked.
 """
-    
+
     def __init__(self, api_key: str, model: str):
         logger.info(f"Initializing AIGenerator with model: {model}")
         try:
@@ -64,16 +65,15 @@ Provide only the direct answer to what was asked.
         self.model = model
 
         # Pre-build base API parameters
-        self.base_params = {
-            "model": self.model,
-            "temperature": 0,
-            "max_tokens": 800
-        }
-    
-    def generate_response(self, query: str,
-                         conversation_history: Optional[str] = None,
-                         tools: Optional[List] = None,
-                         tool_manager=None) -> str:
+        self.base_params = {"model": self.model, "temperature": 0, "max_tokens": 800}
+
+    def generate_response(
+        self,
+        query: str,
+        conversation_history: str | None = None,
+        tools: list | None = None,
+        tool_manager=None,
+    ) -> str:
         """
         Generate AI response with optional tool usage and conversation context.
         Supports up to 2 sequential rounds of tool calling for complex queries.
@@ -138,7 +138,7 @@ Provide only the direct answer to what was asked.
                 error_result = {
                     "type": "tool_result",
                     "tool_use_id": response.content[0].id,
-                    "content": f"Tool execution failed: {str(e)}"
+                    "content": f"Tool execution failed: {str(e)}",
                 }
                 messages.append({"role": "assistant", "content": response.content})
                 messages.append({"role": "user", "content": [error_result]})
@@ -156,8 +156,8 @@ Provide only the direct answer to what was asked.
 
         # Should not reach here, but handle gracefully
         return response.content[0].text if response.content else "Error: No response generated"
-    
-    def _make_api_call(self, messages: List[Dict], system_content: str, tools: Optional[List] = None):
+
+    def _make_api_call(self, messages: list[dict], system_content: str, tools: list | None = None):
         """
         Centralized API call logic with error handling.
 
@@ -172,11 +172,7 @@ Provide only the direct answer to what was asked.
         Raises:
             ValueError: On API errors with user-friendly messages
         """
-        api_params = {
-            **self.base_params,
-            "messages": messages,
-            "system": system_content
-        }
+        api_params = {**self.base_params, "messages": messages, "system": system_content}
 
         # Add tools if provided
         if tools:
@@ -201,7 +197,7 @@ Provide only the direct answer to what was asked.
             logger.error(f"Unexpected error during API call: {type(e).__name__}: {e}")
             raise ValueError(f"Unexpected error calling Anthropic API: {type(e).__name__}: {e}")
 
-    def _execute_and_append_tools(self, response, messages: List[Dict], tool_manager) -> List[Dict]:
+    def _execute_and_append_tools(self, response, messages: list[dict], tool_manager) -> list[dict]:
         """
         Execute tools from response and append results to messages.
 
@@ -223,18 +219,15 @@ Provide only the direct answer to what was asked.
         tool_results = []
         for content_block in response.content:
             if content_block.type == "tool_use":
-                logger.debug(f"Executing tool: {content_block.name} with params: {content_block.input}")
-                tool_result = tool_manager.execute_tool(
-                    content_block.name,
-                    **content_block.input
+                logger.debug(
+                    f"Executing tool: {content_block.name} with params: {content_block.input}"
                 )
+                tool_result = tool_manager.execute_tool(content_block.name, **content_block.input)
                 logger.debug(f"Tool result length: {len(tool_result)} chars")
 
-                tool_results.append({
-                    "type": "tool_result",
-                    "tool_use_id": content_block.id,
-                    "content": tool_result
-                })
+                tool_results.append(
+                    {"type": "tool_result", "tool_use_id": content_block.id, "content": tool_result}
+                )
 
         # Add tool results as single message
         if tool_results:

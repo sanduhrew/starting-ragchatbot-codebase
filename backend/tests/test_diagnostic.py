@@ -1,12 +1,13 @@
 """Diagnostic tests to identify system failures"""
-import pytest
-import os
+
 from pathlib import Path
+
 import anthropic
+import pytest
 from config import Config
-from vector_store import VectorStore
-from search_tools import ToolManager, CourseSearchTool, CourseOutlineTool
+from search_tools import CourseOutlineTool, CourseSearchTool, ToolManager
 from sentence_transformers import SentenceTransformer
+from vector_store import VectorStore
 
 
 def test_anthropic_api_key_exists():
@@ -29,7 +30,11 @@ def test_anthropic_api_key_exists():
     # Check if loaded in config
     config = Config()
     if config.ANTHROPIC_API_KEY:
-        print(f"✓ API key loaded: {config.ANTHROPIC_API_KEY[:15]}..." if len(config.ANTHROPIC_API_KEY) > 15 else "✓ API key loaded (short key)")
+        print(
+            f"✓ API key loaded: {config.ANTHROPIC_API_KEY[:15]}..."
+            if len(config.ANTHROPIC_API_KEY) > 15
+            else "✓ API key loaded (short key)"
+        )
         assert config.ANTHROPIC_API_KEY, "API key is empty"
     else:
         pytest.fail("✗ ANTHROPIC_API_KEY not loaded in Config")
@@ -56,9 +61,9 @@ def test_anthropic_api_key_valid():
         response = client.messages.create(
             model="claude-sonnet-4-20250514",
             max_tokens=10,
-            messages=[{"role": "user", "content": "test"}]
+            messages=[{"role": "user", "content": "test"}],
         )
-        print(f"✓ API call successful")
+        print("✓ API call successful")
         print(f"  Model: {response.model}")
         print(f"  Response: {response.content[0].text[:50] if response.content else 'empty'}")
         assert response is not None
@@ -91,7 +96,7 @@ def test_chromadb_collections_exist():
         store = VectorStore(
             chroma_path=str(chroma_path),
             embedding_model=config.EMBEDDING_MODEL,
-            max_results=config.MAX_RESULTS
+            max_results=config.MAX_RESULTS,
         )
         print("✓ VectorStore initialized successfully")
 
@@ -118,12 +123,12 @@ def test_chromadb_has_data():
         store = VectorStore(
             chroma_path=str(chroma_path),
             embedding_model=config.EMBEDDING_MODEL,
-            max_results=config.MAX_RESULTS
+            max_results=config.MAX_RESULTS,
         )
 
         # Check course_catalog count
         catalog_result = store.course_catalog.get()
-        catalog_count = len(catalog_result['ids']) if catalog_result['ids'] else 0
+        catalog_count = len(catalog_result["ids"]) if catalog_result["ids"] else 0
         print(f"  course_catalog: {catalog_count} documents")
 
         if catalog_count > 0:
@@ -133,7 +138,7 @@ def test_chromadb_has_data():
 
         # Check course_content count
         content_result = store.course_content.get()
-        content_count = len(content_result['ids']) if content_result['ids'] else 0
+        content_count = len(content_result["ids"]) if content_result["ids"] else 0
         print(f"  course_content: {content_count} chunks")
 
         if content_count == 0:
@@ -161,7 +166,7 @@ def test_vector_store_can_query():
         store = VectorStore(
             chroma_path=str(chroma_path),
             embedding_model=config.EMBEDDING_MODEL,
-            max_results=config.MAX_RESULTS
+            max_results=config.MAX_RESULTS,
         )
 
         # Test basic query
@@ -201,7 +206,7 @@ def test_tools_registered():
         store = VectorStore(
             chroma_path=str(chroma_path),
             embedding_model=config.EMBEDDING_MODEL,
-            max_results=config.MAX_RESULTS
+            max_results=config.MAX_RESULTS,
         )
 
         tool_manager = ToolManager()
@@ -221,8 +226,8 @@ def test_tools_registered():
             print(f"  - {tool_def['name']}: {tool_def['description'][:60]}...")
 
         assert len(definitions) == 2, f"Expected 2 tools, got {len(definitions)}"
-        assert definitions[0]['name'] == 'search_course_content'
-        assert definitions[1]['name'] == 'get_course_outline'
+        assert definitions[0]["name"] == "search_course_content"
+        assert definitions[1]["name"] == "get_course_outline"
 
         print("✓ All tools registered correctly")
 

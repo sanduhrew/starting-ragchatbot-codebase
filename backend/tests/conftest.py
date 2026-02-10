@@ -1,15 +1,17 @@
 """Shared pytest fixtures for all tests"""
-import pytest
-from unittest.mock import Mock, MagicMock, patch
+
 import tempfile
-import os
+from unittest.mock import MagicMock, Mock, patch
+
+import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+
 from config import Config
-from vector_store import VectorStore, SearchResults
-from models import Course, Lesson, CourseChunk
+from models import Course, CourseChunk, Lesson
 from rag_system import RAGSystem
 from session_manager import SessionManager
+from vector_store import SearchResults, VectorStore
 
 
 @pytest.fixture
@@ -30,11 +32,7 @@ def mock_config():
 def test_vector_store():
     """Create temporary VectorStore for testing"""
     with tempfile.TemporaryDirectory() as tmpdir:
-        store = VectorStore(
-            chroma_path=tmpdir,
-            embedding_model="all-MiniLM-L6-v2",
-            max_results=5
-        )
+        store = VectorStore(chroma_path=tmpdir, embedding_model="all-MiniLM-L6-v2", max_results=5)
         yield store
 
 
@@ -49,14 +47,14 @@ def sample_course():
             Lesson(
                 lesson_number=1,
                 title="Introduction to Testing",
-                lesson_link="https://example.com/lesson1"
+                lesson_link="https://example.com/lesson1",
             ),
             Lesson(
                 lesson_number=2,
                 title="Advanced Testing Techniques",
-                lesson_link="https://example.com/lesson2"
-            )
-        ]
+                lesson_link="https://example.com/lesson2",
+            ),
+        ],
     )
 
 
@@ -68,14 +66,14 @@ def sample_chunks(sample_course):
             content="This is lesson 1 content about unit testing and test-driven development.",
             course_title=sample_course.title,
             lesson_number=1,
-            chunk_index=0
+            chunk_index=0,
         ),
         CourseChunk(
             content="This is lesson 2 content about integration testing and mocking techniques.",
             course_title=sample_course.title,
             lesson_number=2,
-            chunk_index=0
-        )
+            chunk_index=0,
+        ),
     ]
 
 
@@ -98,12 +96,8 @@ def mock_search_results():
     """Create mock search results"""
     return SearchResults(
         documents=["Sample course content about testing methodologies."],
-        metadata=[{
-            "course_title": "Test Course on AI",
-            "lesson_number": 1,
-            "chunk_index": 0
-        }],
-        distances=[0.5]
+        metadata=[{"course_title": "Test Course on AI", "lesson_number": 1, "chunk_index": 0}],
+        distances=[0.5],
     )
 
 
