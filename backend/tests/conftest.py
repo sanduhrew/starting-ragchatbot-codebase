@@ -1,11 +1,15 @@
 """Shared pytest fixtures for all tests"""
 import pytest
-from unittest.mock import Mock, MagicMock
+from unittest.mock import Mock, MagicMock, patch
 import tempfile
 import os
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
 from config import Config
 from vector_store import VectorStore, SearchResults
 from models import Course, Lesson, CourseChunk
+from rag_system import RAGSystem
+from session_manager import SessionManager
 
 
 @pytest.fixture
@@ -101,3 +105,128 @@ def mock_search_results():
         }],
         distances=[0.5]
     )
+
+
+@pytest.fixture
+def mock_rag_system():
+    """Mock RAG system for API testing"""
+    rag = Mock(spec=RAGSystem)
+    rag.session_manager = Mock(spec=SessionManager)
+    rag.session_manager.create_session.return_value = "test-session-123"
+
+    # Default query response
+    rag.query.return_value = (
+        "This is a test answer from the RAG system.",
+        [{"text": "Test Course - Lesson 1", "link": "https://example.com/lesson1"}]
+    )
+
+    # Default analytics response
+    rag.get_course_analytics.return_value = {
+        "total_courses": 2,
+        "course_titles": ["Test Course on AI", "Advanced Testing Techniques"]
+    }
+
+    return rag
+
+
+@pytest.fixture
+def test_app(mock_rag_system):
+    """Create a test FastAPI app without static file mounting"""
+    from fastapi import FastAPI, HTTPException
+    from fastapi.middleware.cors import CORSMiddleware
+    from pydantic import BaseModel
+    from typing import List, Optional
+
+    # Create fresh app instance for testing
+    app = FastAPI(title="Test RAG System")
+
+    # Add CORS middleware
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
+    # Pydantic models (matching app.py)
+    class QueryRequest(BaseModel):
+        query: str
+        session_id: Optional[str] = None
+
+    class SourceLink(BaseModel):
+        text: str
+        link: Optional[str] = None
+
+    class QueryResponse(BaseModel):
+        answer: str
+        sources: List[SourceLink]
+        session_id: str
+
+    class CourseStats(BaseModel):
+        total_courses: int
+        course_titles: List[str]
+
+    # Define endpoints using the mock RAG system
+    @app.post("/api/query", response_model=QueryResponse)
+    async def query_documents(request: QueryRequest):
+        try:
+            session_id = request.session_id
+            if not session_id:
+                session_id = mock_rag_system.session_manager.create_session()
+
+            answer, sources = mock_rag_system.query(request.query, session_id)
+            source_links = [SourceLink(**source) for source in sources]
+
+            return QueryResponse(
+                answer=answer,
+                sources=source_links,
+                session_id=session_id
+            )
+        except ValueError as e:
+            raise HTTPException(status_code=500, detail=str(e))
+        except Exception as e:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Query processing failed: {type(e).__name__}: {str(e)}"
+            )
+
+    @app.get("/api/courses", response_model=CourseStats)
+    async def get_course_stats():
+        try:
+            analytics = mock_rag_system.get_course_analytics()
+            return CourseStats(
+                total_courses=analytics["total_courses"],
+                course_titles=analytics["course_titles"]
+            )
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
+    @app.get("/")
+    async def root():
+        return {"message": "RAG System API"}
+
+    return app
+
+
+@pytest.fixture
+def client(test_app):
+    """Create a test client for the FastAPI app"""
+    return TestClient(test_app)
+
+
+@pytest.fixture
+def sample_query_request():
+    """Sample query request payload"""
+    return {
+        "query": "What is MCP?",
+        "session_id": "test-session-123"
+    }
+
+
+@pytest.fixture
+def sample_query_request_no_session():
+    """Sample query request without session ID"""
+    return {
+        "query": "What is MCP?"
+    }
