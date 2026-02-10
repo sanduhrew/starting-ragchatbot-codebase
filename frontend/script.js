@@ -3,9 +3,10 @@ const API_URL = '/api';
 
 // Global state
 let currentSessionId = null;
+let currentTheme = 'dark'; // default theme
 
 // DOM elements
-let chatMessages, chatInput, sendButton, totalCourses, courseTitles;
+let chatMessages, chatInput, sendButton, totalCourses, courseTitles, themeToggle;
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
@@ -15,7 +16,11 @@ document.addEventListener('DOMContentLoaded', () => {
     sendButton = document.getElementById('sendButton');
     totalCourses = document.getElementById('totalCourses');
     courseTitles = document.getElementById('courseTitles');
-    
+    themeToggle = document.getElementById('themeToggle');
+
+    // Load saved theme preference
+    loadThemePreference();
+
     setupEventListeners();
     createNewSession();
     loadCourseStats();
@@ -28,6 +33,18 @@ function setupEventListeners() {
     chatInput.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') sendMessage();
     });
+
+    // Theme toggle
+    if (themeToggle) {
+        themeToggle.addEventListener('click', toggleTheme);
+        // Keyboard accessibility
+        themeToggle.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                toggleTheme();
+            }
+        });
+    }
 
     // New chat button
     const newChatButton = document.getElementById('newChatButton');
@@ -174,15 +191,15 @@ async function loadCourseStats() {
         console.log('Loading course stats...');
         const response = await fetch(`${API_URL}/courses`);
         if (!response.ok) throw new Error('Failed to load course stats');
-        
+
         const data = await response.json();
         console.log('Course data received:', data);
-        
+
         // Update stats in UI
         if (totalCourses) {
             totalCourses.textContent = data.total_courses;
         }
-        
+
         // Update course titles
         if (courseTitles) {
             if (data.course_titles && data.course_titles.length > 0) {
@@ -193,7 +210,7 @@ async function loadCourseStats() {
                 courseTitles.innerHTML = '<span class="no-courses">No courses available</span>';
             }
         }
-        
+
     } catch (error) {
         console.error('Error loading course stats:', error);
         // Set default values on error
@@ -203,5 +220,42 @@ async function loadCourseStats() {
         if (courseTitles) {
             courseTitles.innerHTML = '<span class="error">Failed to load courses</span>';
         }
+    }
+}
+
+// Theme Management Functions
+function toggleTheme() {
+    currentTheme = currentTheme === 'dark' ? 'light' : 'dark';
+    applyTheme(currentTheme);
+    saveThemePreference(currentTheme);
+}
+
+function applyTheme(theme) {
+    const root = document.documentElement;
+    root.setAttribute('data-theme', theme);
+    currentTheme = theme;
+}
+
+function saveThemePreference(theme) {
+    try {
+        localStorage.setItem('theme', theme);
+    } catch (error) {
+        console.error('Failed to save theme preference:', error);
+    }
+}
+
+function loadThemePreference() {
+    try {
+        const savedTheme = localStorage.getItem('theme');
+        if (savedTheme) {
+            currentTheme = savedTheme;
+            applyTheme(savedTheme);
+        } else {
+            // Default to dark theme
+            applyTheme('dark');
+        }
+    } catch (error) {
+        console.error('Failed to load theme preference:', error);
+        applyTheme('dark');
     }
 }
